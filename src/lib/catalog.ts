@@ -1,4 +1,5 @@
-// Salon staff and services. Durations are first estimates — adjust here.
+// Salon staff and services. Nina does everything except massages.
+// Nail durations are confirmed; the rest are first estimates — adjust here.
 
 export type StaffId = 'sanja' | 'nina'
 /** 'nokti' is the main room (both can work there at once); 'soba' is the
@@ -29,12 +30,12 @@ export const SERVICES: Service[] = [
   ...s('Nokti', 'nokti', BOTH, [
     ['manikir', 'Manikir', 30],
     ['trajni-lak-ruke', 'Trajni lak ruke', 45],
-    ['gel-sm', 'Gel na prirodne nokte – S i M', 75],
-    ['gel-l', 'Gel na prirodne nokte – L', 90],
-    ['gel-xl', 'Gel na prirodne nokte – XL', 105],
-    ['nadogradnja-sm', 'Nadogradnja – S i M', 120],
-    ['nadogradnja-l', 'Nadogradnja – L', 135],
-    ['nadogradnja-xl', 'Nadogradnja – XL', 150],
+    ['gel-sm', 'Gel / korekcija / dopuna – S i M', 60],
+    ['gel-l', 'Gel / korekcija / dopuna – L', 60],
+    ['gel-xl', 'Gel / korekcija / dopuna – XL', 60],
+    ['nadogradnja-sm', 'Nadogradnja – S i M', 90],
+    ['nadogradnja-l', 'Nadogradnja – L', 90],
+    ['nadogradnja-xl', 'Nadogradnja – XL', 90],
     ['refresh', 'Refresh / mini korekcija', 60],
     ['skidanje-gela', 'Skidanje gela', 20],
     ['skidanje-laka-ruke', 'Skidanje trajnog laka ruke', 15],
@@ -60,7 +61,7 @@ export const SERVICES: Service[] = [
     ['madero-stomak', 'Maderoterapija – stomak', 30],
     ['anticelulit', 'Anticelulit masaža parcijalna', 45],
   ]),
-  ...s('Depilacija', 'soba', SANJA, [
+  ...s('Depilacija', 'soba', BOTH, [
     ['depilacija-noge', 'Depilacija nogu', 45],
     ['depilacija-pola', 'Depilacija do pola nogu', 30],
     ['depilacija-ruke', 'Depilacija ruku', 20],
@@ -69,7 +70,7 @@ export const SERVICES: Service[] = [
     ['depilacija-stomak', 'Depilacija stomaka', 15],
     ['depilacija-nausnice', 'Depilacija nausnica', 10],
   ]),
-  ...s('Obrve', 'nokti', SANJA, [
+  ...s('Obrve', 'nokti', BOTH, [
     ['korekcija-obrva', 'Korekcija obrva', 15],
     ['farbanje-obrva', 'Farbanje obrva', 20],
   ]),
