@@ -27,8 +27,15 @@ function Home() {
     return (
       <div className="login">
         <h1>Aplikacija nije podešena</h1>
+        {session.setupProblems.map((p) => (
+          <div className="error" key={p}>
+            {p}
+          </div>
+        ))}
         <p className="info">
-          Postavite ADMIN_PASSWORD i SESSION_SECRET u postavkama Netlify sajta (vidi README).
+          Na Netlify-ju: Site configuration → Environment variables. Nazivi moraju biti tačno ovako
+          napisani, velikim slovima, a scope „All scopes“ ili bar „Functions“. Nakon izmjene pokrenite
+          Deploys → Trigger deploy → Deploy site.
         </p>
       </div>
     )

@@ -4,7 +4,7 @@ import { normalizePhone } from '../lib/phone'
 import { localDate, localToUtc } from '../lib/time'
 import type { Appointment } from '../lib/types'
 import { isLoggedIn, login, logout, requireLogin } from './auth'
-import { getConfig, getSmsMode } from './config'
+import { getConfig, getSetupProblems, getSmsMode } from './config'
 import { sendIfDue } from './send'
 import * as db from './store'
 
@@ -31,9 +31,11 @@ function parsePhone(raw: string) {
 
 export const getSession = createServerFn({ method: 'GET' }).handler(async () => {
   const cfg = getConfig()
+  const setupProblems = getSetupProblems()
   return {
     loggedIn: isLoggedIn(),
-    configured: Boolean(cfg.adminPassword && cfg.sessionSecret.length >= 16),
+    configured: setupProblems.length === 0,
+    setupProblems,
     smsMode: getSmsMode(),
     salonName: cfg.salonName,
   }
