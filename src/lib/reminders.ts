@@ -52,7 +52,7 @@ export function buildReminderText(
   const firstName = a.clientName.trim().split(/\s+/)[0]
   const service = a.service.trim() ? ` (${a.service.trim()})` : ''
   const text =
-    `Postovani/a ${firstName}, podsjecamo vas na termin ${dayWord(start, now, tz)} ` +
+    `${firstName}, podsjecamo vas na termin ${dayWord(start, now, tz)} ` +
     `u ${localTime(start, tz)}${service} u salonu ${opts.salonName}. Vidimo se!`
   return toGsm(text)
 }

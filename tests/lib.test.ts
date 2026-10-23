@@ -83,7 +83,7 @@ describe('reminder text', () => {
   it('says "sutra" for tomorrow and stays in one GSM SMS', () => {
     const text = buildReminderText(base('2026-10-24T12:00:00Z'), new Date('2026-10-23T12:00:00Z'), opts)
     expect(text).toBe(
-      'Postovani/a Ana, podsjecamo vas na termin sutra u 14:00 (manikir) u salonu Crystal Beauty. Vidimo se!',
+      'Ana, podsjecamo vas na termin sutra u 14:00 (manikir) u salonu Crystal Beauty. Vidimo se!',
     )
     expect(text.length).toBeLessThanOrEqual(160)
   })

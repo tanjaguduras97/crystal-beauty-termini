@@ -4,7 +4,7 @@ Web aplikacija za salon umjesto sveske. Termini se unose sa telefona, a klijent 
 
 Primjer poruke (bez kvačica, da stane u jedan SMS):
 
-> Postovani/a Ana, podsjecamo vas na termin sutra u 14:00 (manikir) u salonu Crystal Beauty. Vidimo se!
+> Ana, podsjecamo vas na termin sutra u 14:00 (manikir) u salonu Crystal Beauty. Vidimo se!
 
 ## Kako radi
 
