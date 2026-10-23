@@ -1,0 +1,9 @@
+{
+  "name": "Crystal Beauty – termini",
+  "short_name": "Termini",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fbf7f5",
+  "theme_color": "#8a4f6d",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
