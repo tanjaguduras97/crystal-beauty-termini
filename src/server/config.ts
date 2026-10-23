@@ -14,7 +14,6 @@ export function getConfig() {
     adminPassword: env.ADMIN_PASSWORD ?? '',
     sessionSecret: env.SESSION_SECRET ?? '',
     salonName: env.SALON_NAME?.trim() || 'Crystal Beauty',
-    salonPhone: env.SALON_PHONE?.trim() || undefined,
     smsSender: env.SMS_SENDER?.trim() || 'Crystal',
     infobip: infobipKey && infobipBaseUrl ? { apiKey: infobipKey, baseUrl: infobipBaseUrl } : null,
   }

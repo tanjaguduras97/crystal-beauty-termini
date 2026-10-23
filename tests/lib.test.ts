@@ -79,12 +79,11 @@ describe('isDue', () => {
 })
 
 describe('reminder text', () => {
-  const opts = { salonName: 'Crystal Beauty', salonPhone: '065 123 456' }
+  const opts = { salonName: 'Crystal Beauty' }
   it('says "sutra" for tomorrow and stays in one GSM SMS', () => {
     const text = buildReminderText(base('2026-10-24T12:00:00Z'), new Date('2026-10-23T12:00:00Z'), opts)
     expect(text).toBe(
-      'Postovani/a Ana, podsjecamo vas na termin sutra u 14:00 (manikir) u salonu Crystal Beauty. ' +
-        'Ako ne mozete doci, javite nam se na 065 123 456. Vidimo se!',
+      'Postovani/a Ana, podsjecamo vas na termin sutra u 14:00 (manikir) u salonu Crystal Beauty. Vidimo se!',
     )
     expect(text.length).toBeLessThanOrEqual(160)
   })

@@ -4,7 +4,7 @@ Web aplikacija za salon umjesto sveske. Termini se unose sa telefona, a klijent 
 
 Primjer poruke (bez kvačica, da stane u jedan SMS):
 
-> Postovani/a Ana, podsjecamo vas na termin sutra u 14:00 (manikir) u salonu Crystal Beauty. Ako ne mozete doci, javite nam se na 065 123 456. Vidimo se!
+> Postovani/a Ana, podsjecamo vas na termin sutra u 14:00 (manikir) u salonu Crystal Beauty. Vidimo se!
 
 ## Kako radi
 
@@ -24,7 +24,6 @@ Primjer poruke (bez kvačica, da stane u jedan SMS):
    |---|---|
    | `ADMIN_PASSWORD` | lozinka za ulaz u aplikaciju |
    | `SESSION_SECRET` | nasumičan tekst, najmanje 16 znakova |
-   | `SALON_PHONE` | broj koji klijent zove za otkazivanje (piše u SMS-u) |
    | `SMS_SENDER` | ime pošiljaoca, najviše 11 znakova (podrazumijevano `Crystal`) |
    | `INFOBIP_BASE_URL`, `INFOBIP_API_KEY` | podaci sa Infobip naloga |
 

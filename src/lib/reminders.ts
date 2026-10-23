@@ -45,17 +45,14 @@ function dayWord(start: Date, now: Date, timeZone: string): string {
 export function buildReminderText(
   a: Pick<Appointment, 'clientName' | 'service' | 'startsAt'>,
   now: Date,
-  opts: { salonName: string; salonPhone?: string; timeZone?: string },
+  opts: { salonName: string; timeZone?: string },
 ): string {
   const tz = opts.timeZone ?? SALON_TZ
   const start = new Date(a.startsAt)
   const firstName = a.clientName.trim().split(/\s+/)[0]
   const service = a.service.trim() ? ` (${a.service.trim()})` : ''
-  const contact = opts.salonPhone
-    ? ` Ako ne mozete doci, javite nam se na ${opts.salonPhone}.`
-    : ''
   const text =
     `Postovani/a ${firstName}, podsjecamo vas na termin ${dayWord(start, now, tz)} ` +
-    `u ${localTime(start, tz)}${service} u salonu ${opts.salonName}.${contact} Vidimo se!`
+    `u ${localTime(start, tz)}${service} u salonu ${opts.salonName}. Vidimo se!`
   return toGsm(text)
 }

@@ -22,7 +22,7 @@ export async function sendIfDue(entry: db.Stored, now = new Date()): Promise<App
   if (!(await db.saveIfUnchanged(entry.key, entry.etag, claimed))) return a
 
   const cfg = getConfig()
-  const text = buildReminderText(a, now, { salonName: cfg.salonName, salonPhone: cfg.salonPhone })
+  const text = buildReminderText(a, now, { salonName: cfg.salonName })
   const result = await sendSms(a.phone, text)
 
   // Re-read so an edit made while the SMS was in flight isn't overwritten.
