@@ -298,3 +298,39 @@ body {
 .login .field {
   text-align: left;
 }
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 4px;
+  margin-bottom: 8px;
+}
+.tabs button {
+  flex: 1;
+  border: 0;
+  background: none;
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 15px;
+  color: var(--muted);
+}
+.tabs button.active {
+  background: var(--brand);
+  color: var(--brand-ink);
+  font-weight: 600;
+}
+.card .time small {
+  display: block;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.card.readonly {
+  cursor: default;
+}
+.card:disabled {
+  color: inherit;
+}

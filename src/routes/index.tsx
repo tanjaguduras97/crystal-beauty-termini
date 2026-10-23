@@ -3,11 +3,16 @@ import { useServerFn } from '@tanstack/react-start'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { formatPhone } from '@/lib/phone'
+import { conflictAt, fromMinutes, toMinutes } from '@/lib/availability'
+import type { Busy } from '@/lib/availability'
+import { OTHER_SERVICE_ID, findService, servicesFor } from '@/lib/catalog'
+import type { Room, StaffId } from '@/lib/catalog'
 import { MAX_ATTEMPTS, REMINDER_LEAD_MS } from '@/lib/reminders'
 import { SLOTS } from '@/lib/slots'
 import { addDays, formatDayLabel, localDate, localTime } from '@/lib/time'
 import type { Appointment } from '@/lib/types'
 import {
+  availabilityFn,
   createAppointmentFn,
   deleteAppointmentFn,
   getSession,
@@ -41,7 +46,7 @@ function Home() {
       </div>
     )
   }
-  return session.loggedIn ? <Agenda smsMode={session.smsMode} /> : <Login />
+  return session.user ? <Agenda user={session.user} smsMode={session.smsMode} /> : <Login />
 }
 
 function Login() {
@@ -90,24 +95,31 @@ function Login() {
 
 type Editing = { mode: 'new' } | { mode: 'edit'; appointment: Appointment }
 
-function Agenda({ smsMode }: { smsMode: 'infobip' | 'test' }) {
+type SessionUser = {
+  name: string
+  calendars: { staffId: StaffId; name: string; editable: boolean }[]
+}
+
+function Agenda({ user, smsMode }: { user: SessionUser; smsMode: 'infobip' | 'test' }) {
   const router = useRouter()
   const listDay = useServerFn(listDayFn)
   const logout = useServerFn(logoutFn)
   const [day, setDay] = useState(() => localDate(new Date()))
+  const [staffId, setStaffId] = useState<StaffId>(user.calendars[0].staffId)
   const [items, setItems] = useState<Appointment[] | null>(null)
   const [error, setError] = useState('')
   const [editing, setEditing] = useState<Editing | null>(null)
   const dateInput = useRef<HTMLInputElement>(null)
+  const calendar = user.calendars.find((c) => c.staffId === staffId)!
 
   const load = useCallback(async () => {
     setError('')
     try {
-      setItems(await listDay({ data: { date: day } }))
+      setItems(await listDay({ data: { date: day, staffId } }))
     } catch (err) {
       setError((err as Error).message)
     }
-  }, [day, listDay])
+  }, [day, staffId, listDay])
 
   useEffect(() => {
     setItems(null)
@@ -130,7 +142,7 @@ function Agenda({ smsMode }: { smsMode: 'infobip' | 'test' }) {
   return (
     <div className="app">
       <div className="topbar">
-        <span className="brand">Crystal Beauty</span>
+        <span className="brand">Crystal Beauty · {user.name}</span>
         <button
           className="link-btn"
           onClick={async () => {
@@ -145,6 +157,23 @@ function Agenda({ smsMode }: { smsMode: 'infobip' | 'test' }) {
       {smsMode === 'test' && (
         <div className="banner">
           Test način: SMS poruke se ne šalju stvarno dok se ne poveže SMS provajder.
+        </div>
+      )}
+
+      {user.calendars.length > 1 && (
+        <div className="tabs" role="tablist">
+          {user.calendars.map((c) => (
+            <button
+              key={c.staffId}
+              role="tab"
+              aria-selected={c.staffId === staffId}
+              className={c.staffId === staffId ? 'active' : ''}
+              onClick={() => setStaffId(c.staffId)}
+            >
+              {c.name}
+              {!c.editable && ' (pregled)'}
+            </button>
+          ))}
         </div>
       )}
 
@@ -187,18 +216,25 @@ function Agenda({ smsMode }: { smsMode: 'infobip' | 'test' }) {
       ) : (
         <div className="list">
           {items.map((a) => (
-            <AppointmentCard key={a.id} a={a} onOpen={() => setEditing({ mode: 'edit', appointment: a })} />
+            <AppointmentCard
+              key={a.id}
+              a={a}
+              onOpen={calendar.editable ? () => setEditing({ mode: 'edit', appointment: a }) : undefined}
+            />
           ))}
         </div>
       )}
 
-      <button className="fab" onClick={() => setEditing({ mode: 'new' })}>
-        + Novi termin
-      </button>
+      {calendar.editable && (
+        <button className="fab" onClick={() => setEditing({ mode: 'new' })}>
+          + Novi termin
+        </button>
+      )}
 
       {editing && (
         <AppointmentSheet
           editing={editing}
+          staffId={staffId}
           defaultDate={day}
           onClose={() => setEditing(null)}
           onSaved={(saved) => {
@@ -212,17 +248,24 @@ function Agenda({ smsMode }: { smsMode: 'infobip' | 'test' }) {
   )
 }
 
-function AppointmentCard({ a, onOpen }: { a: Appointment; onOpen: () => void }) {
+function AppointmentCard({ a, onOpen }: { a: Appointment; onOpen?: () => void }) {
   const start = new Date(a.startsAt)
+  const startTime = localTime(start)
+  const endTime = fromMinutes(toMinutes(startTime) + a.durationMin)
   const badge = reminderBadge(a, new Date())
   return (
-    <button className={`card ${a.status === 'cancelled' ? 'cancelled' : ''}`} onClick={onOpen}>
-      <div className="time">{localTime(start)}</div>
+    <button
+      className={`card ${a.status === 'cancelled' ? 'cancelled' : ''} ${onOpen ? '' : 'readonly'}`}
+      onClick={onOpen}
+      disabled={!onOpen}
+    >
+      <div className="time">
+        {startTime}
+        <small>{endTime}</small>
+      </div>
       <div className="body">
         <div className="name">{a.clientName}</div>
-        <div className="meta">
-          {[a.service, formatPhone(a.phone)].filter(Boolean).join(' · ')}
-        </div>
+        <div className="meta">{[a.service, formatPhone(a.phone)].filter(Boolean).join(' · ')}</div>
         {a.note && <div className="meta">{a.note}</div>}
         <span className={`badge ${badge.tone}`} title={a.reminder.lastError}>
           {badge.text}
@@ -255,13 +298,23 @@ function reminderBadge(a: Appointment, now: Date): { text: string; tone: string 
   return { text: `SMS ide ${shortDateTime(new Date(sendAt))}`, tone: 'wait' }
 }
 
+const CUSTOM_DURATIONS = Array.from({ length: 16 }, (_, i) => (i + 1) * 15)
+
+function formatDuration(min: number) {
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  return h ? `${h} h${m ? ` ${m} min` : ''}` : `${m} min`
+}
+
 function AppointmentSheet({
   editing,
+  staffId,
   defaultDate,
   onClose,
   onSaved,
 }: {
   editing: Editing
+  staffId: StaffId
   defaultDate: string
   onClose: () => void
   onSaved: (saved: Appointment | null) => void
@@ -269,13 +322,20 @@ function AppointmentSheet({
   const create = useServerFn(createAppointmentFn)
   const update = useServerFn(updateAppointmentFn)
   const remove = useServerFn(deleteAppointmentFn)
+  const availability = useServerFn(availabilityFn)
   const existing = editing.mode === 'edit' ? editing.appointment : null
   const originalDate = existing ? localDate(new Date(existing.startsAt)) : defaultDate
+  const services = servicesFor(staffId)
+  const groups = [...new Set(services.map((s) => s.group))]
 
   const [form, setForm] = useState({
+    staffId,
+    serviceId: existing?.serviceId ?? '',
+    customService: existing?.serviceId === OTHER_SERVICE_ID ? existing.service : '',
+    customDurationMin: existing?.serviceId === OTHER_SERVICE_ID ? existing.durationMin : 60,
+    customRoom: (existing?.serviceId === OTHER_SERVICE_ID ? existing.room : 'nokti') as Room,
     clientName: existing?.clientName ?? '',
     phone: existing ? formatPhone(existing.phone) : '',
-    service: existing?.service ?? '',
     date: originalDate,
     time: existing ? localTime(new Date(existing.startsAt)) : '',
     note: existing?.note ?? '',
@@ -283,36 +343,38 @@ function AppointmentSheet({
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const listDay = useServerFn(listDayFn)
-  const [taken, setTaken] = useState<Set<string> | null>(null)
+  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }))
 
-  // Load the chosen day's bookings so occupied times can't be picked.
+  const isOther = form.serviceId === OTHER_SERVICE_ID
+  const catalogService = findService(form.serviceId)
+  const durationMin = isOther ? form.customDurationMin : catalogService?.durationMin
+  const room: Room = isOther ? form.customRoom : (catalogService?.room ?? 'nokti')
+
+  // Busy spans for the chosen day: this calendar's bookings, plus the shared
+  // room when the service needs it.
+  const [blocked, setBlocked] = useState<Busy[] | null>(null)
   useEffect(() => {
     let current = true
-    setTaken(null)
-    listDay({ data: { date: form.date } })
-      .then((items) => {
-        if (!current) return
-        const times = items
-          .filter((a) => a.status === 'scheduled' && a.id !== existing?.id)
-          .map((a) => localTime(new Date(a.startsAt)))
-        setTaken(new Set(times))
-      })
-      .catch(() => current && setTaken(new Set()))
+    setBlocked(null)
+    availability({ data: { date: form.date, staffId, room, excludeId: existing?.id } })
+      .then((b) => current && setBlocked(b))
+      .catch(() => current && setBlocked([]))
     return () => {
       current = false
     }
-  }, [form.date, existing?.id, listDay])
+  }, [form.date, staffId, room, existing?.id, availability])
 
+  const conflictFor = (t: string) => (blocked && durationMin ? conflictAt(t, durationMin, blocked) : null)
+
+  // Drop a picked time that stops fitting after the service or day changes.
   useEffect(() => {
-    if (taken?.has(form.time)) setForm((f) => ({ ...f, time: '' }))
-  }, [taken, form.time])
+    if (form.time && conflictFor(form.time)) setForm((f) => ({ ...f, time: '' }))
+  }, [blocked, durationMin])
 
   const originalTime = existing ? localTime(new Date(existing.startsAt)) : ''
   // Keep an existing booking's time selectable even if it predates the hours rule.
   const timeOptions =
     originalTime && !SLOTS.includes(originalTime) ? [...SLOTS, originalTime].sort() : SLOTS
-  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }))
 
   async function run(action: () => Promise<Appointment | null>) {
     setBusy(true)
@@ -339,6 +401,8 @@ function AppointmentSheet({
     run(() => update({ data: { ...form, id: existing.id, originalDate, status } }))
   }
 
+  const timePlaceholder = !durationMin ? 'Prvo izaberite uslugu' : blocked ? 'Izaberite' : 'Učitavanje…'
+
   return (
     <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <form className="sheet" onSubmit={submit}>
@@ -362,8 +426,53 @@ function AppointmentSheet({
         </label>
         <label className="field">
           <span>Usluga</span>
-          <input placeholder="npr. manikir" value={form.service} onChange={(e) => set('service', e.target.value)} />
+          <select value={form.serviceId} onChange={(e) => set('serviceId', e.target.value)} required>
+            <option value="" disabled>
+              Izaberite uslugu
+            </option>
+            {groups.map((g) => (
+              <optgroup key={g} label={g}>
+                {services
+                  .filter((s) => s.group === g)
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({formatDuration(s.durationMin)})
+                    </option>
+                  ))}
+              </optgroup>
+            ))}
+            <option value={OTHER_SERVICE_ID}>Ostalo (upišite)…</option>
+          </select>
         </label>
+        {isOther && (
+          <>
+            <label className="field">
+              <span>Naziv usluge</span>
+              <input value={form.customService} onChange={(e) => set('customService', e.target.value)} required />
+            </label>
+            <label className="field">
+              <span>Trajanje</span>
+              <select
+                value={form.customDurationMin}
+                onChange={(e) => set('customDurationMin', Number(e.target.value))}
+              >
+                {CUSTOM_DURATIONS.map((m) => (
+                  <option key={m} value={m}>
+                    {formatDuration(m)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={form.customRoom === 'soba'}
+                onChange={(e) => set('customRoom', e.target.checked ? 'soba' : 'nokti')}
+              />
+              <span>Radi se u sobi za pedikir i masažu</span>
+            </label>
+          </>
+        )}
         <div className="row">
           <label className="field">
             <span>Datum</span>
@@ -371,18 +480,31 @@ function AppointmentSheet({
           </label>
           <label className="field">
             <span>Vrijeme</span>
-            <select value={form.time} onChange={(e) => set('time', e.target.value)} required disabled={!taken}>
+            <select
+              value={form.time}
+              onChange={(e) => set('time', e.target.value)}
+              required
+              disabled={!blocked || !durationMin}
+            >
               <option value="" disabled>
-                {taken ? 'Izaberite' : 'Učitavanje…'}
+                {timePlaceholder}
               </option>
-              {timeOptions.map((t) => (
-                <option key={t} value={t} disabled={taken?.has(t)}>
-                  {taken?.has(t) ? `${t} – zauzeto` : t}
-                </option>
-              ))}
+              {timeOptions.map((t) => {
+                const c = conflictFor(t)
+                return (
+                  <option key={t} value={t} disabled={Boolean(c)}>
+                    {c === 'staff' ? `${t} – zauzeto` : c === 'room' ? `${t} – soba zauzeta` : t}
+                  </option>
+                )
+              })}
             </select>
           </label>
         </div>
+        {durationMin && form.time && (
+          <p className="info">
+            Termin traje {formatDuration(durationMin)}: {form.time}–{fromMinutes(toMinutes(form.time) + durationMin)}
+          </p>
+        )}
         <label className="field">
           <span>Napomena (samo za vas)</span>
           <textarea rows={2} value={form.note} onChange={(e) => set('note', e.target.value)} />

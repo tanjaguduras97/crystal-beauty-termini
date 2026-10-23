@@ -8,7 +8,11 @@ Primjer poruke (bez kvačica, da stane u jedan SMS):
 
 ## Kako radi
 
-- **Unos termina:** ime, telefon (npr. `065 123 456`), usluga, datum, vrijeme, napomena i saglasnost za SMS.
+- **Dva kalendara, Sanja i Nina.** Svaka se prijavljuje svojom lozinkom. Sanja vidi i Ninin kalendar, ali ga ne može mijenjati. Nina vidi samo svoj. Admin prijava (`ADMIN_PASSWORD`) služi za održavanje i može mijenjati oba.
+- **Unos termina:** ime, telefon (npr. `065 123 456`), usluga iz liste (ili „Ostalo“ sa upisanim nazivom i trajanjem), datum, vrijeme, napomena i saglasnost za SMS.
+- **Usluge i trajanja** su u `src/lib/catalog.ts`. Tu se mijenja trajanje, dodaje nova usluga ili mijenja ko je radi.
+- **Vrijeme** se bira od 08:00 do 20:00 (posljednji početak), na svakih 15 minuta. Zauzeto je sve što bi se preklopilo sa drugim terminom iste osobe, uzimajući u obzir trajanje usluge.
+- **Soba za pedikir i masažu je zajednička.** Pedikir, masaže i depilacija ne mogu se zakazati dok druga osoba ima termin u toj sobi. Nokti se rade u glavnoj prostoriji, gdje mogu raditi obje istovremeno.
 - **Pregled po danima,** kao u svesci, sa oznakom stanja podsjetnika za svaki termin: kada ide, poslat, greška.
 - **Otkazan ili obrisan termin** ne dobija podsjetnik. Ako se termin pomjeri na drugo vrijeme ili broj, podsjetnik se ponovo šalje.
 - **Netlify zakazana funkcija** (`netlify/functions/send-reminders.mts`) svakih 5 minuta šalje podsjetnike koji su na redu. Neuspjelo slanje pokušava još 2 puta, a nakon toga termin dobija crvenu oznaku „nazovite klijenta“.
@@ -22,7 +26,9 @@ Primjer poruke (bez kvačica, da stane u jedan SMS):
 
    | Varijabla | Opis |
    |---|---|
-   | `ADMIN_PASSWORD` | lozinka za ulaz u aplikaciju |
+   | `ADMIN_PASSWORD` | lozinka za održavanje (oba kalendara) |
+   | `PASSWORD_SANJA` | Sanjina lozinka |
+   | `PASSWORD_NINA` | Ninina lozinka |
    | `SESSION_SECRET` | nasumičan tekst, najmanje 16 znakova |
    | `SMS_SENDER` | ime pošiljaoca, najviše 11 znakova (podrazumijevano `Crystal`) |
    | `INFOBIP_BASE_URL`, `INFOBIP_API_KEY` | podaci sa Infobip naloga |

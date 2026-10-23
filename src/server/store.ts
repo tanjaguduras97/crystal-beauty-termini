@@ -1,4 +1,5 @@
 import { getStore } from '@netlify/blobs'
+import { withDefaults } from '../lib/types'
 import type { Appointment } from '../lib/types'
 import { localDate } from '../lib/time'
 
@@ -24,7 +25,7 @@ export async function listDay(date: string): Promise<Stored[]> {
 export async function read(key: string): Promise<Stored | null> {
   const res = await store().getWithMetadata(key, { type: 'json' })
   if (!res) return null
-  return { appointment: res.data as Appointment, etag: res.etag ?? '', key }
+  return { appointment: withDefaults(res.data as Appointment), etag: res.etag ?? '', key }
 }
 
 export async function findById(date: string, id: string): Promise<Stored | null> {

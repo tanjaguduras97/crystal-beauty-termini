@@ -30,7 +30,10 @@ export function toGsm(text: string): string {
   return text
     .replace(/[đĐ]/g, (c) => (c === 'đ' ? 'dj' : 'Dj'))
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201c\u201d\u201e]/g, '"')
 }
 
 function dayWord(start: Date, now: Date, timeZone: string): string {

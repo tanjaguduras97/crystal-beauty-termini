@@ -40,6 +40,10 @@ describe('time zone', () => {
 })
 
 const base = (startsAt: string, over: Partial<Appointment> = {}): Appointment => ({
+  staffId: 'sanja',
+  serviceId: 'manikir',
+  durationMin: 30,
+  room: 'nokti',
   id: 'x',
   clientName: 'Ana Petrović',
   phone: '+38765123456',
@@ -92,6 +96,14 @@ describe('reminder text', () => {
     expect(text).toContain('termin danas u 18:00')
   })
   it('strips diacritics', () => expect(toGsm('Đurđa šišanje, čćž')).toBe('Djurdja sisanje, ccz'))
+  it('keeps every catalog service within one GSM-7 SMS', async () => {
+    const { SERVICES } = await import('../src/lib/catalog')
+    for (const s of SERVICES) {
+      const text = buildReminderText({ clientName: 'Aleksandra', service: s.name, startsAt: '2026-10-24T12:00:00Z' }, new Date('2026-10-23T12:00:00Z'), opts)
+      expect(text).toMatch(/^[A-Za-z0-9 .,!?'"()\/:+-]*$/)
+      expect(text.length).toBeLessThanOrEqual(160)
+    }
+  })
 })
 
 describe('slots', async () => {
@@ -105,4 +117,38 @@ describe('slots', async () => {
     '%s bookable: %s',
     (t, ok) => expect(isBookableTime(t)).toBe(ok),
   )
+})
+
+describe('availability', async () => {
+  const { busyFor, conflictAt } = await import('../src/lib/availability')
+  const appt = (staffId: 'sanja' | 'nina', time: string, durationMin: number, room: 'nokti' | 'soba', over = {}) =>
+    base(localToUtc('2026-11-02', time).toISOString(), { id: `${staffId}-${time}`, staffId, durationMin, room, ...over })
+  const day = [
+    appt('sanja', '10:00', 60, 'soba'), // massage
+    appt('nina', '10:00', 75, 'nokti'), // gel
+    appt('nina', '15:00', 60, 'soba', { status: 'cancelled' }),
+  ]
+
+  it('blocks the whole length of own bookings', () => {
+    const busy = busyFor(day, { staffId: 'nina', room: 'nokti' })
+    expect(conflictAt('10:45', 30, busy)).toBe('staff')
+    expect(conflictAt('09:30', 45, busy)).toBe('staff') // would run into 10:00
+    expect(conflictAt('09:30', 30, busy)).toBeNull() // ends exactly at 10:00
+    expect(conflictAt('11:15', 30, busy)).toBeNull()
+  })
+  it("ignores the other person's nail bookings", () => {
+    const busy = busyFor(day, { staffId: 'sanja', room: 'nokti' })
+    expect(conflictAt('11:00', 30, busy)).toBeNull()
+  })
+  it('blocks the shared room for pedicure while a massage runs', () => {
+    const busy = busyFor(day, { staffId: 'nina', room: 'soba' })
+    expect(conflictAt('11:30', 60, busy)).toBeNull()
+    const sanjaFree = busyFor([day[0]], { staffId: 'nina', room: 'soba' })
+    expect(conflictAt('10:30', 60, sanjaFree)).toBe('room')
+    expect(conflictAt('11:00', 60, sanjaFree)).toBeNull()
+  })
+  it('ignores cancelled bookings and the booking being edited', () => {
+    expect(conflictAt('15:00', 60, busyFor(day, { staffId: 'sanja', room: 'soba' }))).toBeNull()
+    expect(conflictAt('10:00', 60, busyFor(day, { staffId: 'sanja', room: 'soba', excludeId: 'sanja-10:00' }))).toBeNull()
+  })
 })

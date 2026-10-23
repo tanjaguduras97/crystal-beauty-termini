@@ -1,21 +1,32 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
+import { busyFor, conflictAt } from '../lib/availability'
+import type { Busy } from '../lib/availability'
+import { OTHER_SERVICE_ID, STAFF, findService } from '../lib/catalog'
+import type { Room, StaffId } from '../lib/catalog'
 import { normalizePhone } from '../lib/phone'
 import { isBookableTime } from '../lib/slots'
-import { localDate, localTime, localToUtc } from '../lib/time'
+import { localDate, localToUtc } from '../lib/time'
 import type { Appointment } from '../lib/types'
-import { isLoggedIn, login, logout, requireLogin } from './auth'
+import { canView, currentUser, login, logout, requireEdit, requireUser } from './auth'
 import { getConfig, getSetupProblems, getSmsMode } from './config'
 import { sendIfDue } from './send'
 import * as db from './store'
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+const staffSchema = z.enum(['sanja', 'nina'])
+const roomSchema = z.enum(['nokti', 'soba'])
 
 const fieldsSchema = z.object({
+  staffId: staffSchema,
+  serviceId: z.string().min(1, 'Izaberite uslugu.').max(40),
+  /** Only used for 'ostalo'. */
+  customService: z.string().trim().max(80),
+  customDurationMin: z.number().int().min(15).max(300),
+  customRoom: roomSchema,
   clientName: z.string().trim().min(1, 'Unesite ime klijenta.').max(80),
   phone: z.string().trim().min(1, 'Unesite broj telefona.'),
-  service: z.string().trim().max(80),
   date: dateSchema,
   time: timeSchema,
   note: z.string().trim().max(300),
@@ -24,13 +35,31 @@ const fieldsSchema = z.object({
 
 export type AppointmentFields = z.infer<typeof fieldsSchema>
 
-/** One client per time slot: rejects a start time another booking already holds. */
-async function assertSlotFree(date: string, time: string, selfId?: string) {
-  const taken = (await db.listDay(date)).some(
-    ({ appointment: a }) =>
-      a.id !== selfId && a.status === 'scheduled' && localTime(new Date(a.startsAt)) === time,
-  )
-  if (taken) throw new Error(`Termin u ${time} je već zauzet. Izaberite drugo vrijeme.`)
+/** Service name, length and room for a booking, from the catalog or the free-text fields. */
+function resolveService(data: AppointmentFields): Pick<Appointment, 'serviceId' | 'service' | 'durationMin' | 'room'> {
+  if (data.serviceId === OTHER_SERVICE_ID) {
+    if (!data.customService) throw new Error('Upišite naziv usluge.')
+    return { serviceId: OTHER_SERVICE_ID, service: data.customService, durationMin: data.customDurationMin, room: data.customRoom }
+  }
+  const s = findService(data.serviceId)
+  if (!s) throw new Error('Nepoznata usluga.')
+  if (!s.staff.includes(data.staffId)) throw new Error(`${s.name} nije u listi usluga za ovaj kalendar.`)
+  return { serviceId: s.id, service: s.name, durationMin: s.durationMin, room: s.room }
+}
+
+async function dayAppointments(date: string) {
+  return (await db.listDay(date)).map((e) => e.appointment)
+}
+
+async function assertAvailable(
+  date: string,
+  time: string,
+  opts: { staffId: StaffId; room: Room; durationMin: number; excludeId?: string },
+) {
+  const busy = busyFor(await dayAppointments(date), opts)
+  const conflict = conflictAt(time, opts.durationMin, busy)
+  if (conflict === 'staff') throw new Error(`U ${time} se preklapa sa drugim terminom. Izaberite drugo vrijeme.`)
+  if (conflict === 'room') throw new Error(`Soba za pedikir i masažu je zauzeta u to vrijeme. Izaberite drugo vrijeme.`)
 }
 
 function assertWorkingHours(time: string) {
@@ -46,8 +75,18 @@ function parsePhone(raw: string) {
 export const getSession = createServerFn({ method: 'GET' }).handler(async () => {
   const cfg = getConfig()
   const setupProblems = getSetupProblems()
+  const user = currentUser()
   return {
-    loggedIn: isLoggedIn(),
+    loggedIn: Boolean(user),
+    user: user
+      ? {
+          name: user.name,
+          calendars: user.calendars.map((c) => ({
+            ...c,
+            name: STAFF.find((s) => s.id === c.staffId)!.name,
+          })),
+        }
+      : null,
     configured: setupProblems.length === 0,
     setupProblems,
     smsMode: getSmsMode(),
@@ -65,24 +104,42 @@ export const logoutFn = createServerFn({ method: 'POST' }).handler(async () => {
 })
 
 export const listDayFn = createServerFn({ method: 'GET' })
-  .inputValidator(z.object({ date: dateSchema }))
+  .inputValidator(z.object({ date: dateSchema, staffId: staffSchema }))
   .handler(async ({ data }) => {
-    requireLogin()
-    return (await db.listDay(data.date)).map((e) => e.appointment)
+    const user = requireUser()
+    if (!canView(user, data.staffId)) throw new Error('Nemate pristup ovom kalendaru.')
+    return (await dayAppointments(data.date)).filter((a) => a.staffId === data.staffId)
+  })
+
+/**
+ * Busy times for the booking form. Only spans and reasons leave the server,
+ * so a shared-room clash never reveals the other calendar's clients.
+ */
+export const availabilityFn = createServerFn({ method: 'GET' })
+  .inputValidator(
+    z.object({ date: dateSchema, staffId: staffSchema, room: roomSchema, excludeId: z.string().uuid().optional() }),
+  )
+  .handler(async ({ data }): Promise<Busy[]> => {
+    const user = requireUser()
+    requireEdit(user, data.staffId)
+    return busyFor(await dayAppointments(data.date), data)
   })
 
 export const createAppointmentFn = createServerFn({ method: 'POST' })
   .inputValidator(fieldsSchema)
   .handler(async ({ data }) => {
-    requireLogin()
+    const user = requireUser()
+    requireEdit(user, data.staffId)
+    const service = resolveService(data)
     assertWorkingHours(data.time)
-    await assertSlotFree(data.date, data.time)
+    await assertAvailable(data.date, data.time, { staffId: data.staffId, ...service })
     const now = new Date().toISOString()
     const a: Appointment = {
       id: crypto.randomUUID(),
+      staffId: data.staffId,
+      ...service,
       clientName: data.clientName,
       phone: parsePhone(data.phone),
-      service: data.service,
       startsAt: localToUtc(data.date, data.time).toISOString(),
       note: data.note,
       smsConsent: data.smsConsent,
@@ -104,24 +161,29 @@ export const updateAppointmentFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data }) => {
-    requireLogin()
+    const user = requireUser()
     const entry = await db.findById(data.originalDate, data.id)
     if (!entry) throw new Error('Termin više ne postoji.')
     const prev = entry.appointment
+    requireEdit(user, prev.staffId)
+    // A booking stays in the calendar it was made in.
+    const service = resolveService({ ...data, staffId: prev.staffId })
     const startsAt = localToUtc(data.date, data.time).toISOString()
     // Bookings made before the hours rule existed can still be edited as long
     // as their time isn't changed.
     if (startsAt !== prev.startsAt) assertWorkingHours(data.time)
-    if (data.status === 'scheduled') await assertSlotFree(data.date, data.time, prev.id)
+    if (data.status === 'scheduled') {
+      await assertAvailable(data.date, data.time, { staffId: prev.staffId, ...service, excludeId: prev.id })
+    }
     const phone = parsePhone(data.phone)
     // A new time or number means the client hasn't been told about this
     // booking yet, so it gets a fresh reminder.
     const rescheduled = startsAt !== prev.startsAt || phone !== prev.phone
     const next: Appointment = {
       ...prev,
+      ...service,
       clientName: data.clientName,
       phone,
-      service: data.service,
       startsAt,
       note: data.note,
       smsConsent: data.smsConsent,
@@ -136,8 +198,11 @@ export const updateAppointmentFn = createServerFn({ method: 'POST' })
 export const deleteAppointmentFn = createServerFn({ method: 'POST' })
   .inputValidator(z.object({ id: z.string().uuid(), date: dateSchema }))
   .handler(async ({ data }) => {
-    requireLogin()
-    await db.remove(`${data.date}/${data.id}`)
+    const user = requireUser()
+    const entry = await db.findById(data.date, data.id)
+    if (!entry) return { ok: true }
+    requireEdit(user, entry.appointment.staffId)
+    await db.remove(entry.key)
     return { ok: true }
   })
 

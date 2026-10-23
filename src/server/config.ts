@@ -12,6 +12,8 @@ export function getConfig() {
   const infobipBaseUrl = env.INFOBIP_BASE_URL?.trim()
   return {
     adminPassword: env.ADMIN_PASSWORD ?? '',
+    sanjaPassword: env.PASSWORD_SANJA ?? '',
+    ninaPassword: env.PASSWORD_NINA ?? '',
     sessionSecret: env.SESSION_SECRET ?? '',
     salonName: env.SALON_NAME?.trim() || 'Crystal Beauty',
     smsSender: env.SMS_SENDER?.trim() || 'Crystal',
