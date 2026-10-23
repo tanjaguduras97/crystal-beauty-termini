@@ -211,6 +211,7 @@ body {
   margin-bottom: 6px;
 }
 .field input,
+.field select,
 .field textarea {
   width: 100%;
   border: 1px solid var(--line);
@@ -220,7 +221,12 @@ body {
   font-size: 16px; /* prevents iOS zoom on focus */
   color: var(--ink);
 }
+.field select {
+  appearance: none;
+  min-height: 48px;
+}
 .field input:focus,
+.field select:focus,
 .field textarea:focus {
   outline: 2px solid var(--brand);
   outline-offset: -1px;

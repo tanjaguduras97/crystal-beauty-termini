@@ -93,3 +93,16 @@ describe('reminder text', () => {
   })
   it('strips diacritics', () => expect(toGsm('Đurđa šišanje, čćž')).toBe('Djurdja sisanje, ccz'))
 })
+
+describe('slots', async () => {
+  const { SLOTS, isBookableTime } = await import('../src/lib/slots')
+  it('runs from 08:00 to 20:00 every 15 minutes', () => {
+    expect(SLOTS[0]).toBe('08:00')
+    expect(SLOTS.at(-1)).toBe('20:00')
+    expect(SLOTS).toHaveLength(49)
+  })
+  it.each([['07:45', false], ['08:00', true], ['13:20', false], ['13:15', true], ['20:00', true], ['20:15', false], ['21:00', false]])(
+    '%s bookable: %s',
+    (t, ok) => expect(isBookableTime(t)).toBe(ok),
+  )
+})

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { formatPhone } from '@/lib/phone'
 import { MAX_ATTEMPTS, REMINDER_LEAD_MS } from '@/lib/reminders'
+import { SLOTS } from '@/lib/slots'
 import { addDays, formatDayLabel, localDate, localTime } from '@/lib/time'
 import type { Appointment } from '@/lib/types'
 import {
@@ -282,6 +283,35 @@ function AppointmentSheet({
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const listDay = useServerFn(listDayFn)
+  const [taken, setTaken] = useState<Set<string> | null>(null)
+
+  // Load the chosen day's bookings so occupied times can't be picked.
+  useEffect(() => {
+    let current = true
+    setTaken(null)
+    listDay({ data: { date: form.date } })
+      .then((items) => {
+        if (!current) return
+        const times = items
+          .filter((a) => a.status === 'scheduled' && a.id !== existing?.id)
+          .map((a) => localTime(new Date(a.startsAt)))
+        setTaken(new Set(times))
+      })
+      .catch(() => current && setTaken(new Set()))
+    return () => {
+      current = false
+    }
+  }, [form.date, existing?.id, listDay])
+
+  useEffect(() => {
+    if (taken?.has(form.time)) setForm((f) => ({ ...f, time: '' }))
+  }, [taken, form.time])
+
+  const originalTime = existing ? localTime(new Date(existing.startsAt)) : ''
+  // Keep an existing booking's time selectable even if it predates the hours rule.
+  const timeOptions =
+    originalTime && !SLOTS.includes(originalTime) ? [...SLOTS, originalTime].sort() : SLOTS
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }))
 
   async function run(action: () => Promise<Appointment | null>) {
@@ -341,7 +371,16 @@ function AppointmentSheet({
           </label>
           <label className="field">
             <span>Vrijeme</span>
-            <input type="time" step={300} value={form.time} onChange={(e) => set('time', e.target.value)} required />
+            <select value={form.time} onChange={(e) => set('time', e.target.value)} required disabled={!taken}>
+              <option value="" disabled>
+                {taken ? 'Izaberite' : 'Učitavanje…'}
+              </option>
+              {timeOptions.map((t) => (
+                <option key={t} value={t} disabled={taken?.has(t)}>
+                  {taken?.has(t) ? `${t} – zauzeto` : t}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
         <label className="field">

@@ -1,7 +1,8 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { normalizePhone } from '../lib/phone'
-import { localDate, localToUtc } from '../lib/time'
+import { isBookableTime } from '../lib/slots'
+import { localDate, localTime, localToUtc } from '../lib/time'
 import type { Appointment } from '../lib/types'
 import { isLoggedIn, login, logout, requireLogin } from './auth'
 import { getConfig, getSetupProblems, getSmsMode } from './config'
@@ -22,6 +23,19 @@ const fieldsSchema = z.object({
 })
 
 export type AppointmentFields = z.infer<typeof fieldsSchema>
+
+/** One client per time slot: rejects a start time another booking already holds. */
+async function assertSlotFree(date: string, time: string, selfId?: string) {
+  const taken = (await db.listDay(date)).some(
+    ({ appointment: a }) =>
+      a.id !== selfId && a.status === 'scheduled' && localTime(new Date(a.startsAt)) === time,
+  )
+  if (taken) throw new Error(`Termin u ${time} je već zauzet. Izaberite drugo vrijeme.`)
+}
+
+function assertWorkingHours(time: string) {
+  if (!isBookableTime(time)) throw new Error('Termini se mogu zakazati od 08:00 do 20:00, na svakih 15 minuta.')
+}
 
 function parsePhone(raw: string) {
   const phone = normalizePhone(raw)
@@ -61,6 +75,8 @@ export const createAppointmentFn = createServerFn({ method: 'POST' })
   .inputValidator(fieldsSchema)
   .handler(async ({ data }) => {
     requireLogin()
+    assertWorkingHours(data.time)
+    await assertSlotFree(data.date, data.time)
     const now = new Date().toISOString()
     const a: Appointment = {
       id: crypto.randomUUID(),
@@ -93,6 +109,10 @@ export const updateAppointmentFn = createServerFn({ method: 'POST' })
     if (!entry) throw new Error('Termin više ne postoji.')
     const prev = entry.appointment
     const startsAt = localToUtc(data.date, data.time).toISOString()
+    // Bookings made before the hours rule existed can still be edited as long
+    // as their time isn't changed.
+    if (startsAt !== prev.startsAt) assertWorkingHours(data.time)
+    if (data.status === 'scheduled') await assertSlotFree(data.date, data.time, prev.id)
     const phone = parsePhone(data.phone)
     // A new time or number means the client hasn't been told about this
     // booking yet, so it gets a fresh reminder.
