@@ -2,6 +2,12 @@
   command = "vite build"
   publish = "dist/client"
 
+# These are read only at runtime by server code and never end up in the
+# build output, so a value that happens to match ordinary text in the repo
+# shouldn't fail the build.
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "ADMIN_PASSWORD,PASSWORD_SANJA,PASSWORD_NINA,IPHONE_TOKEN,SESSION_SECRET"
+
 [dev]
   command = "npm run dev"
   targetPort = 3000
