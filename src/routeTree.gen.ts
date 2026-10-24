@@ -10,33 +10,53 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiIphonePoslatoRouteImport } from './routes/api/iphone/poslato'
+import { Route as ApiIphonePorukeRouteImport } from './routes/api/iphone/poruke'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiIphonePoslatoRoute = ApiIphonePoslatoRouteImport.update({
+  id: '/api/iphone/poslato',
+  path: '/api/iphone/poslato',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiIphonePorukeRoute = ApiIphonePorukeRouteImport.update({
+  id: '/api/iphone/poruke',
+  path: '/api/iphone/poruke',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/iphone/poruke': typeof ApiIphonePorukeRoute
+  '/api/iphone/poslato': typeof ApiIphonePoslatoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/iphone/poruke': typeof ApiIphonePorukeRoute
+  '/api/iphone/poslato': typeof ApiIphonePoslatoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/iphone/poruke': typeof ApiIphonePorukeRoute
+  '/api/iphone/poslato': typeof ApiIphonePoslatoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/api/iphone/poruke' | '/api/iphone/poslato'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/api/iphone/poruke' | '/api/iphone/poslato'
+  id: '__root__' | '/' | '/api/iphone/poruke' | '/api/iphone/poslato'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiIphonePorukeRoute: typeof ApiIphonePorukeRoute
+  ApiIphonePoslatoRoute: typeof ApiIphonePoslatoRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +68,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/iphone/poslato': {
+      id: '/api/iphone/poslato'
+      path: '/api/iphone/poslato'
+      fullPath: '/api/iphone/poslato'
+      preLoaderRoute: typeof ApiIphonePoslatoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/iphone/poruke': {
+      id: '/api/iphone/poruke'
+      path: '/api/iphone/poruke'
+      fullPath: '/api/iphone/poruke'
+      preLoaderRoute: typeof ApiIphonePorukeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiIphonePorukeRoute: ApiIphonePorukeRoute,
+  ApiIphonePoslatoRoute: ApiIphonePoslatoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

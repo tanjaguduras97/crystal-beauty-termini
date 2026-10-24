@@ -1,7 +1,7 @@
 import { addDays, localDate } from '../lib/time'
 import { buildReminderText, isDue } from '../lib/reminders'
 import type { Appointment } from '../lib/types'
-import { getConfig } from './config'
+import { getConfig, getSmsMode } from './config'
 import { sendSms } from './sms'
 import * as db from './store'
 
@@ -12,7 +12,8 @@ import * as db from './store'
  */
 export async function sendIfDue(entry: db.Stored, now = new Date()): Promise<Appointment> {
   const a = entry.appointment
-  if (!isDue(a, now)) return a
+  // In iPhone mode the phone picks due texts up itself (see iphone.ts).
+  if (!isDue(a, now) || getSmsMode() === 'iphone') return a
 
   const claimed: Appointment = {
     ...a,
@@ -45,6 +46,7 @@ export async function sendIfDue(entry: db.Stored, now = new Date()): Promise<App
 
 /** Called by the scheduled function every few minutes. */
 export async function sendDueReminders(now = new Date()) {
+  if (getSmsMode() === 'iphone') return { mode: 'iphone' }
   // The 24h window never reaches past tomorrow in salon-local days.
   const today = localDate(now)
   const entries = [...(await db.listDay(today)), ...(await db.listDay(addDays(today, 1)))]

@@ -31,7 +31,8 @@ Primjer poruke (bez kvačica, da stane u jedan SMS):
    | `PASSWORD_NINA` | Ninina lozinka |
    | `SESSION_SECRET` | nasumičan tekst, najmanje 16 znakova |
    | `SMS_SENDER` | ime pošiljaoca, najviše 11 znakova (podrazumijevano `Crystal`) |
-   | `INFOBIP_BASE_URL`, `INFOBIP_API_KEY` | podaci sa Infobip naloga |
+   | `IPHONE_TOKEN` | tajni ključ za slanje SMS-a sa iPhone-a (vidi dolje) |
+   | `INFOBIP_BASE_URL`, `INFOBIP_API_KEY` | podaci sa Infobip naloga (ima prednost nad iPhone-om) |
 
 3. Ponovo pokrenite deploy.
 
@@ -40,6 +41,16 @@ Dok Infobip nije povezan, aplikacija radi u **test načinu**: sve funkcioniše, 
 ## Na iPhone-u
 
 Otvorite adresu sajta u Safariju, zatim **Dijeli → Dodaj na početni ekran**. Aplikacija se otvara kao obična aplikacija, sa ikonicom „Termini“.
+
+## Slanje SMS-a sa iPhone-a (Prečice)
+
+Kada je postavljen `IPHONE_TOKEN` (a Infobip nije), server ne šalje SMS sam. Automatizacija u aplikaciji Prečice na iPhone-u salona svaki sat:
+
+1. otvori `https://<sajt>/api/iphone/poruke?kljuc=<IPHONE_TOKEN>`, koji vraća listu `[{ broj, tekst, potvrda }]` za podsjetnike koji su na redu,
+2. za svaku stavku pošalje poruku `tekst` na `broj`,
+3. otvori `potvrda` URL, čime se termin označava kao „SMS poslat“.
+
+Poruke se predaju samo između 08:00 i 21:00. Stavka koja nije potvrđena predaje se ponovo nakon 10 minuta, najviše 3 puta, a zatim termin dobija oznaku greške.
 
 ## SMS provajder (Infobip)
 

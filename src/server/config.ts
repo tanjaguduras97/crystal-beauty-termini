@@ -18,13 +18,23 @@ export function getConfig() {
     salonName: env.SALON_NAME?.trim() || 'Crystal Beauty',
     smsSender: env.SMS_SENDER?.trim() || 'Crystal',
     infobip: infobipKey && infobipBaseUrl ? { apiKey: infobipKey, baseUrl: infobipBaseUrl } : null,
+    /** Secret in the iPhone Shortcut's URLs; enables sending from the iPhone. */
+    iphoneToken: env.IPHONE_TOKEN?.trim() ?? '',
   }
 }
 
-export type SmsMode = 'infobip' | 'test'
+/**
+ * infobip: the server sends each SMS itself.
+ * iphone: an iPhone Shortcut fetches due texts and sends them from the phone.
+ * test: nothing is sent; texts are only logged.
+ */
+export type SmsMode = 'infobip' | 'iphone' | 'test'
 
 export function getSmsMode(): SmsMode {
-  return getConfig().infobip ? 'infobip' : 'test'
+  const cfg = getConfig()
+  if (cfg.infobip) return 'infobip'
+  if (cfg.iphoneToken.length >= 16) return 'iphone'
+  return 'test'
 }
 
 /** Which required settings are missing, without revealing their values. */
@@ -35,5 +45,7 @@ export function getSetupProblems(): string[] {
   if (!cfg.sessionSecret) problems.push('SESSION_SECRET nije pronađen.')
   else if (cfg.sessionSecret.length < 16)
     problems.push(`SESSION_SECRET ima ${cfg.sessionSecret.length} znakova, a treba najmanje 16.`)
+  if (cfg.iphoneToken && cfg.iphoneToken.length < 16)
+    problems.push(`IPHONE_TOKEN ima ${cfg.iphoneToken.length} znakova, a treba najmanje 16.`)
   return problems
 }

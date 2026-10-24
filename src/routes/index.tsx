@@ -100,7 +100,9 @@ type SessionUser = {
   calendars: { staffId: StaffId; name: string; editable: boolean }[]
 }
 
-function Agenda({ user, smsMode }: { user: SessionUser; smsMode: 'infobip' | 'test' }) {
+type SmsMode = 'infobip' | 'iphone' | 'test'
+
+function Agenda({ user, smsMode }: { user: SessionUser; smsMode: SmsMode }) {
   const router = useRouter()
   const listDay = useServerFn(listDayFn)
   const logout = useServerFn(logoutFn)
@@ -219,6 +221,7 @@ function Agenda({ user, smsMode }: { user: SessionUser; smsMode: 'infobip' | 'te
             <AppointmentCard
               key={a.id}
               a={a}
+              smsMode={smsMode}
               onOpen={calendar.editable ? () => setEditing({ mode: 'edit', appointment: a }) : undefined}
             />
           ))}
@@ -248,11 +251,11 @@ function Agenda({ user, smsMode }: { user: SessionUser; smsMode: 'infobip' | 'te
   )
 }
 
-function AppointmentCard({ a, onOpen }: { a: Appointment; onOpen?: () => void }) {
+function AppointmentCard({ a, smsMode, onOpen }: { a: Appointment; smsMode: SmsMode; onOpen?: () => void }) {
   const start = new Date(a.startsAt)
   const startTime = localTime(start)
   const endTime = fromMinutes(toMinutes(startTime) + a.durationMin)
-  const badge = reminderBadge(a, new Date())
+  const badge = reminderBadge(a, new Date(), smsMode)
   return (
     <button
       className={`card ${a.status === 'cancelled' ? 'cancelled' : ''} ${onOpen ? '' : 'readonly'}`}
@@ -280,12 +283,13 @@ function shortDateTime(d: Date) {
   return `${day}.${m}. u ${localTime(d)}`
 }
 
-function reminderBadge(a: Appointment, now: Date): { text: string; tone: string } {
+function reminderBadge(a: Appointment, now: Date, smsMode: SmsMode): { text: string; tone: string } {
+  const iphone = smsMode === 'iphone'
   if (a.status === 'cancelled') return { text: 'Otkazan', tone: 'off' }
   const r = a.reminder
   if (r.state === 'sent') return { text: `SMS poslat ${shortDateTime(new Date(r.sentAt!))}`, tone: 'ok' }
   if (!a.smsConsent) return { text: 'Bez SMS podsjetnika', tone: 'off' }
-  if (r.state === 'sending') return { text: 'SMS se šalje…', tone: 'wait' }
+  if (r.state === 'sending') return { text: iphone ? 'iPhone šalje SMS…' : 'SMS se šalje…', tone: 'wait' }
   const start = Date.parse(a.startsAt)
   if (start <= now.getTime()) return { text: 'Podsjetnik nije poslat', tone: 'off' }
   if (r.state === 'failed') {
@@ -294,8 +298,10 @@ function reminderBadge(a: Appointment, now: Date): { text: string; tone: string 
       : { text: 'SMS nije poslat – nazovite klijenta', tone: 'bad' }
   }
   const sendAt = start - REMINDER_LEAD_MS
-  if (sendAt <= now.getTime()) return { text: 'SMS odlazi za par minuta', tone: 'wait' }
-  return { text: `SMS ide ${shortDateTime(new Date(sendAt))}`, tone: 'wait' }
+  // The iPhone only sends when its hourly automation runs, so times are approximate.
+  if (sendAt <= now.getTime())
+    return { text: iphone ? 'SMS ide sa iPhone-a pri sljedećoj provjeri' : 'SMS odlazi za par minuta', tone: 'wait' }
+  return { text: `SMS ide ${iphone ? 'nakon ' : ''}${shortDateTime(new Date(sendAt))}`, tone: 'wait' }
 }
 
 const CUSTOM_DURATIONS = Array.from({ length: 16 }, (_, i) => (i + 1) * 15)
